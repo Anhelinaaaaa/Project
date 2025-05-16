@@ -1,0 +1,87 @@
+public class Scheduler {
+    private Map<String, List<Appointment>> diaries;
+    private List<HealthProfessional> professionals;
+    private Stack<Appointment> undoStack;
+
+    public Scheduler() {
+        diaries = new HashMap<>();
+        professionals = new ArrayList<>();
+        undoStack = new Stack<>();
+    }
+
+    public void addProfessional(HealthProfessional professional) {
+        professionals.add(professional);
+        diaries.put(professional.name, new ArrayList<>());
+    }
+
+    public void removeProfessional(String professionalName) {
+        professionals.removeIf(p -> p.name.equals(professionalName));
+        diaries.remove(professionalName);
+    }
+
+    public void addAppointment(String professionalName, Appointment appointment) {
+        if (diaries.containsKey(professionalName)) {
+            diaries.get(professionalName).add(appointment);
+            undoStack.push(appointment);
+        } else {
+            System.out.println("Professional not found.");
+        }
+    }
+
+    public void removeAppointment(String professionalName, Appointment appointment) {
+        if (diaries.containsKey(professionalName)) {
+            diaries.get(professionalName).remove(appointment);
+            undoStack.push(appointment);
+        } else {
+            System.out.println("Professional not found.");
+        }
+    }
+
+    public void displayAppointments(String professionalName) {
+        if (diaries.containsKey(professionalName)) {
+            for (Appointment appointment : diaries.get(professionalName)) {
+                System.out.println(appointment);
+            }
+        } else {
+            System.out.println("Professional not found.");
+        }
+    }
+
+    public List<String> findAvailableTimes(List<String> professionalNames, String startDate, String endDate) {
+        List<String> availableTimes = new ArrayList<>();
+        // Placeholder logic for finding available times
+        // This should be replaced with actual logic to find overlapping free times
+        return availableTimes;
+    }
+
+    public void undo() {
+        if (!undoStack.isEmpty()) {
+            Appointment lastAction = undoStack.pop();
+            for (String professionalName : diaries.keySet()) {
+                List<Appointment> appointments = diaries.get(professionalName);
+                if (appointments.contains(lastAction)) {
+                    appointments.remove(lastAction);
+                    break;
+                }
+            }
+        } else {
+            System.out.println("No actions to undo.");
+        }
+    }
+
+    public void saveDiariesToFile(String fileName) {
+        try (ObjectOutputStream out = new ObjectOutputStream(new FileOutputStream(fileName))) {
+            out.writeObject(diaries);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void loadDiariesFromFile(String fileName) {
+        try (ObjectInputStream in = new ObjectInputStream(new FileInputStream(fileName))) {
+            diaries = (Map<String, List<Appointment>>) in.readObject();
+        } catch (IOException | ClassNotFoundException e) {
+            e.printStackTrace();
+        }
+    }
+}
