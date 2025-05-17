@@ -1,0 +1,93 @@
+package one;
+
+import java.io.Serializable;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.util.List;
+import java.util.Objects;
+
+public class Appointment implements Serializable {
+    private LocalDate date;
+    private LocalTime startTime;
+    private LocalTime endTime;
+    private String treatmentType;
+    private List<HealthProfessional> participants;
+
+    public Appointment(LocalDate date, LocalTime startTime, LocalTime endTime, String treatmentType, List<HealthProfessional> participants) {
+        this.date = date;
+        this.startTime = startTime;
+        this.endTime = endTime;
+        this.treatmentType = treatmentType;
+        this.participants = participants;
+    }
+
+    // Getters
+    public LocalDate getDate() {
+        return date;
+    }
+
+    public LocalTime getStartTime() {
+        return startTime;
+    }
+
+    public LocalTime getEndTime() {
+        return endTime;
+    }
+
+    public String getTreatmentType() {
+        return treatmentType;
+    }
+
+    public List<HealthProfessional> getParticipants() {
+        return participants;
+    }
+
+    // Setters
+    public void setDate(LocalDate date) {
+        this.date = date;
+    }
+
+    public void setStartTime(LocalTime startTime) {
+        this.startTime = startTime;
+    }
+
+    public void setEndTime(LocalTime endTime) {
+        this.endTime = endTime;
+    }
+
+    public void setTreatmentType(String treatmentType) {
+        this.treatmentType = treatmentType;
+    }
+
+    public void setParticipants(List<HealthProfessional> participants) {
+        this.participants = participants;
+    }
+
+    @Override
+    public String toString() {
+        return "Appointment{" +
+                "date=" + date +
+                ", startTime=" + startTime +
+                ", endTime=" + endTime +
+                ", treatmentType='" + treatmentType + '\'' +
+                ", participants=" + participants +
+                '}';
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Appointment)) return false;
+        Appointment that = (Appointment) o;
+        return Objects.equals(date, that.date) &&
+                Objects.equals(startTime, that.startTime) &&
+                Objects.equals(endTime, that.endTime) &&
+                Objects.equals(treatmentType, that.treatmentType) &&
+                Objects.equals(participants, that.participants);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(date, startTime, endTime, treatmentType, participants);
+    }
+}
