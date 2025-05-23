@@ -1,0 +1,74 @@
+package one;
+
+import java.io.Serializable;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Stack;
+import java.util.stream.Collectors;
+
+public class Diary implements Serializable {
+    private List<Appointment> appointments;
+    private Stack<List<Appointment>> undoStack;
+
+    public Diary() {
+        this.appointments = new ArrayList<>();
+        this.undoStack = new Stack<>();
+    }
+
+    private void saveStateForUndo() {
+        // Save a copy of the list to undo stack
+        List<Appointment> snapshot = new ArrayList<>(appointments);
+        undoStack.push(snapshot);
+    }
+
+    public void addAppointment(Appointment appointment) {
+        saveStateForUndo();
+        appointments.add(appointment);
+    }
+
+    public boolean removeAppointment(Appointment appointment) {
+        if (appointments.contains(appointment)) {
+            saveStateForUndo();
+            appointments.remove(appointment);
+            return true;
+        }
+        return false;
+    }
+
+    public boolean editAppointment(Appointment oldApp, Appointment newApp) {
+        int index = appointments.indexOf(oldApp);
+        if (index != -1) {
+            saveStateForUndo();
+            appointments.set(index, newApp);
+            return true;
+        }
+        return false;
+    }
+
+    public List<Appointment> getAppointments() {
+        return new ArrayList<>(appointments); // avoid external modification
+    }
+
+    public List<Appointment> getAppointmentsOnDate(LocalDate date) {
+        return appointments.stream()
+                .filter(app -> app.getDate().equals(date))
+                .collect(Collectors.toList());
+    }
+
+    public boolean undo() {
+        if (!undoStack.isEmpty()) {
+            appointments = undoStack.pop();
+            return true;
+        }
+        return false;
+    }
+
+    public void printAllAppointments() {
+        if (appointments.isEmpty()) {
+            System.out.println("No appointments.");
+        } else {
+            appointments.forEach(System.out::println);
+        }
+    }
+}
