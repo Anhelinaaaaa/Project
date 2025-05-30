@@ -1,87 +1,231 @@
-public class Scheduler {
-    private Map<String, List<Appointment>> diaries;
-    private List<HealthProfessional> professionals;
-    private Stack<Appointment> undoStack;
+// Updated OptimizedOperationScheduler class
+package one;
 
-    public Scheduler() {
+import java.io.Serializable;
+import java.time.Duration;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.*;
+import java.util.stream.Collectors;
+
+/**
+ * OptimizedOperationScheduler - Enhanced scheduler with efficient data structures
+ * and algorithms for fast appointment scheduling and searching.
+ */
+public class OptimizedOperationScheduler implements Serializable {
+
+    private Map<String, HealthProfessional> professionals;
+    private Map<String, Diary> diaries;
+    private Stack<Command> undoStack;
+    private static final int MAX_UNDO_OPERATIONS = 50;
+
+    public OptimizedOperationScheduler() {
+        professionals = new HashMap<>();
         diaries = new HashMap<>();
-        professionals = new ArrayList<>();
         undoStack = new Stack<>();
     }
 
-    public void addProfessional(HealthProfessional professional) {
-        professionals.add(professional);
-        diaries.put(professional.name, new ArrayList<>());
-    }
+    // Health Professional Management
 
-    public void removeProfessional(String professionalName) {
-        professionals.removeIf(p -> p.name.equals(professionalName));
-        diaries.remove(professionalName);
-    }
-
-    public void addAppointment(String professionalName, Appointment appointment) {
-        if (diaries.containsKey(professionalName)) {
-            diaries.get(professionalName).add(appointment);
-            undoStack.push(appointment);
-        } else {
-            System.out.println("Professional not found.");
+    public boolean addHealthProfessional(HealthProfessional professional) {
+        if (professional == null || professionals.containsKey(professional.getName())) {
+            return false;
         }
+        professionals.put(professional.getName(), professional);
+        diaries.put(professional.getName(), new Diary());
+        recordUndo(new AddProfessionalCommand(professional.getName()));
+        return true;
     }
 
-    public void removeAppointment(String professionalName, Appointment appointment) {
-        if (diaries.containsKey(professionalName)) {
-            diaries.get(professionalName).remove(appointment);
-            undoStack.push(appointment);
-        } else {
-            System.out.println("Professional not found.");
+    public boolean removeHealthProfessional(String name) {
+        if (!professionals.containsKey(name)) {
+            return false;
         }
+        HealthProfessional removedProfessional = professionals.remove(name);
+        Diary removedDiary = diaries.remove(name);
+        recordUndo(new RemoveProfessionalCommand(removedProfessional, removedDiary));
+        return true;
     }
 
-    public void displayAppointments(String professionalName) {
-        if (diaries.containsKey(professionalName)) {
-            for (Appointment appointment : diaries.get(professionalName)) {
-                System.out.println(appointment);
+    public boolean editHealthProfessional(String oldName, HealthProfessional newProfessional) {
+        if (!professionals.containsKey(oldName) || newProfessional == null) {
+            return false;
+        }
+        HealthProfessional oldProfessional = professionals.get(oldName);
+        professionals.put(newProfessional.getName(), newProfessional);
+        if (!oldName.equals(newProfessional.getName())) {
+            Diary diary = diaries.remove(oldName);
+            diaries.put(newProfessional.getName(), diary);
+            professionals.remove(oldName);
+        }
+        recordUndo(new EditProfessionalCommand(oldName, oldProfessional, newProfessional));
+        return true;
+    }
+
+    public Diary getDiary(String professionalName) {
+        return diaries.get(professionalName);
+    }
+
+    // Appointment Scheduling
+
+    public boolean scheduleAppointment(TimeSlot timeSlot, String patientName, String treatmentType, List<String> professionalNames) {
+        List<Diary> involvedDiaries = new ArrayList<>();
+        for (String name : professionalNames) {
+            Diary diary = diaries.get(name);
+            if (diary == null || diary.isOverlapping(new Appointment(
+                    timeSlot.getStartTime().toLocalDate(),
+                    timeSlot.getStartTime().toLocalTime(),
+                    timeSlot.getEndTime().toLocalTime(),
+                    treatmentType,
+                    null))) {
+                return false;
             }
-        } else {
-            System.out.println("Professional not found.");
+            involvedDiaries.add(diary);
+        }
+
+        Appointment newAppointment = new Appointment(
+                timeSlot.getStartTime().toLocalDate(),
+                timeSlot.getStartTime().toLocalTime(),
+                timeSlot.getEndTime().toLocalTime(),
+                treatmentType,
+                professionalNames.stream().map(professionals::get).collect(Collectors.toList())
+        );
+
+        for (Diary diary : involvedDiaries) {
+            diary.addAppointment(newAppointment);
+        }
+        recordUndo(new ScheduleAppointmentCommand(newAppointment, professionalNames));
+        return true;
+    }
+
+    public List<TimeSlot> findAvailableTimeSlots(List<String> professionalNames, LocalDate startDate, LocalDate endDate, Duration duration) {
+        if (professionalNames.isEmpty() || startDate.isAfter(endDate)) {
+            return Collections.emptyList();
+        }
+
+        List<Diary> involvedDiaries = professionalNames.stream()
+                .map(diaries::get)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+
+        List<TimeSlot> availableSlots = new ArrayList<>();
+        LocalDate currentDate = startDate;
+        while (!currentDate.isAfter(endDate)) {
+            LocalTime currentTime = LocalTime.of(8, 0);
+            while (currentTime.plus(duration).isBefore(LocalTime.of(17, 0))) {
+                LocalDateTime start = LocalDateTime.of(currentDate, currentTime);
+                LocalDateTime end = start.plus(duration);
+
+                boolean allAvailable = involvedDiaries.stream()
+                        .allMatch(diary -> !diary.isOverlapping(new Appointment(
+                                currentDate,
+                                currentTime,
+                                end.toLocalTime(),
+                                null,
+                                null)));
+
+                if (allAvailable) {
+                    availableSlots.add(new TimeSlot(start, end));
+                }
+                currentTime = currentTime.plusMinutes(30);
+            }
+            currentDate = currentDate.plusDays(1);
+        }
+        return availableSlots;
+    }
+
+    public boolean undo() {
+        if (undoStack.isEmpty()) {
+            return false;
+        }
+        undoStack.pop().undo();
+        return true;
+    }
+
+    private void recordUndo(Command command) {
+        if (undoStack.size() >= MAX_UNDO_OPERATIONS) {
+            undoStack.remove(0);
+        }
+        undoStack.push(command);
+    }
+
+    // Command Pattern Implementations
+
+    private interface Command {
+        void undo();
+    }
+
+    private class AddProfessionalCommand implements Command {
+        private final String professionalName;
+
+        public AddProfessionalCommand(String professionalName) {
+            this.professionalName = professionalName;
+        }
+
+        @Override
+        public void undo() {
+            professionals.remove(professionalName);
+            diaries.remove(professionalName);
         }
     }
 
-    public List<String> findAvailableTimes(List<String> professionalNames, String startDate, String endDate) {
-        List<String> availableTimes = new ArrayList<>();
-        // Placeholder logic for finding available times
-        // This should be replaced with actual logic to find overlapping free times
-        return availableTimes;
+    private class RemoveProfessionalCommand implements Command {
+        private final HealthProfessional professional;
+        private final Diary diary;
+
+        public RemoveProfessionalCommand(HealthProfessional professional, Diary diary) {
+            this.professional = professional;
+            this.diary = diary;
+        }
+
+        @Override
+        public void undo() {
+            professionals.put(professional.getName(), professional);
+            diaries.put(professional.getName(), diary);
+        }
     }
 
-    public void undo() {
-        if (!undoStack.isEmpty()) {
-            Appointment lastAction = undoStack.pop();
-            for (String professionalName : diaries.keySet()) {
-                List<Appointment> appointments = diaries.get(professionalName);
-                if (appointments.contains(lastAction)) {
-                    appointments.remove(lastAction);
-                    break;
+    private class EditProfessionalCommand implements Command {
+        private final String oldName;
+        private final HealthProfessional oldProfessional;
+        private final HealthProfessional newProfessional;
+
+        public EditProfessionalCommand(String oldName, HealthProfessional oldProfessional, HealthProfessional newProfessional) {
+            this.oldName = oldName;
+            this.oldProfessional = oldProfessional;
+            this.newProfessional = newProfessional;
+        }
+
+        @Override
+        public void undo() {
+            professionals.put(oldName, oldProfessional);
+            if (!oldName.equals(newProfessional.getName())) {
+                diaries.put(oldName, diaries.remove(newProfessional.getName()));
+                professionals.remove(newProfessional.getName());
+            }
+        }
+    }
+
+    private class ScheduleAppointmentCommand implements Command {
+        private final Appointment appointment;
+        private final List<String> professionalNames;
+
+        public ScheduleAppointmentCommand(Appointment appointment, List<String> professionalNames) {
+            this.appointment = appointment;
+            this.professionalNames = new ArrayList<>(professionalNames);
+        }
+
+        @Override
+        public void undo() {
+            for (String name : professionalNames) {
+                Diary diary = diaries.get(name);
+                if (diary != null) {
+                    diary.removeAppointment(appointment);
                 }
             }
-        } else {
-            System.out.println("No actions to undo.");
-        }
-    }
-
-    public void saveDiariesToFile(String fileName) {
-        try (ObjectOutputStream out = new ObjectOutputStream(new FileOutputStream(fileName))) {
-            out.writeObject(diaries);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    public void loadDiariesFromFile(String fileName) {
-        try (ObjectInputStream in = new ObjectInputStream(new FileInputStream(fileName))) {
-            diaries = (Map<String, List<Appointment>>) in.readObject();
-        } catch (IOException | ClassNotFoundException e) {
-            e.printStackTrace();
         }
     }
 }
+
+
